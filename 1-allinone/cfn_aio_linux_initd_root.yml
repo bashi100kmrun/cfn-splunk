@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Run EC2 Instance for Splunk Enterprise(all-in-one).'
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Network Configuration"
+        Parameters:
+          - VPCID
+          - CidrforSGforSplunkAIO
+          - SubnetId
+      -
+        Label:
+          default: "Amazon EC2 Configuration"
+        Parameters:
+          - ImageId
+          - InstanceType
+          - Ec2userPassword
+      -
+        Label:
+          default: "Splunk Configuration"
+        Parameters:
+          - URLforSplunkEnterprise
+          - SplunkAdminPassword
+      -
+        Label:
+          default: "Other Configuration"
+        Parameters:
+          - TagUser
+          - TagSuffix
+    ParameterLabels:
+      VPCID:
+        default: "Which VPC should this be deployed to?"
+      SubnetId:
+        default: "Which Subnet should this be deployed to?"
+      ImageId:
+        default: "Which AMIID should this be deployed to?"
+Parameters:
+  # Parameter for AMI ID
+  ImageId:
+    Description: Input SSM Parameter for AMI ID for amazonlinux 2 Latest version(Do not modify)
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  # Parameter for Splunk Enterprise's Download URL
+  URLforSplunkEnterprise:
+    Description: Select Splunk Enterprise Installer Download URL.
+    Type: String
+    Default: https://download.splunk.com/products/splunk/releases/7.3.5/linux/splunk-7.3.5-86fd62efc3d7-Linux-x86_64.tgz
+    AllowedValues:
+      - https://download.splunk.com/products/splunk/releases/7.3.5/linux/splunk-7.3.5-86fd62efc3d7-Linux-x86_64.tgz
+      - https://download.splunk.com/products/splunk/releases/8.0.3/linux/splunk-8.0.3-a6754d8441bf-Linux-x86_64.tgz
+  # Parameter for IncetanceType
+  InstanceType:
+    Description: Select EC2 instance type
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.nano
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  # Parameter for VPC ID
+  VPCID:
+    Description: Select VPC Id for Generating SecurityGroup
+    Type: 'AWS::EC2::VPC::Id'
+  CidrforSGforSplunkAIO:
+    Description: Input CIDR Block for New SecurityGroup
+    Type: String
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.0.0.0/8
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/8-16.
+  # Parameter for Subnet ID
+  SubnetId:
+    Description: Select Subnet Id for Generating EC2
+    Type: 'AWS::EC2::Subnet::Id'
+  # Parameter for KeyPair
+  KeyPair:
+    Description: Select KeyPair for Generating EC2
+    Type: 'AWS::EC2::KeyPair::KeyName'
+  TagSuffix:
+    Description: Input String for Name Tag.
+    Type: String
+    Default: sample
+  # Parameter for UserTag
+  TagUser:
+    Description: Input String for User Tag.
+    Type: String
+    Default: user
+  # Parameter for Splunk Admin's Password
+  SplunkAdminPassword:
+    Description: Input Splunk admin user's password.(Default:password)
+    Type: String
+    Default: password
+    NoEcho: True
+Resources:
+  # SecurityGroup for Splunk Enterprise on Linux
+  SGforSplunkAIO:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPCID
+      GroupName: !Sub 'aio-linux-${AWS::StackName}'
+      GroupDescription: allow for SplunkEnterprise on Linux
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: !Ref CidrforSGforSplunkAIO
+      - IpProtocol: tcp
+        FromPort: '8000'
+        ToPort: '8000'
+        CidrIp: !Ref CidrforSGforSplunkAIO
+      - IpProtocol: tcp
+        FromPort: '8089'
+        ToPort: '8089'
+        CidrIp: !Ref CidrforSGforSplunkAIO
+  # EC2 Settings for Splunk Enterprise(All-in-one)
+  EC2forAIO:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      NetworkInterfaces:
+        - DeleteOnTermination: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref SGforSplunkAIO
+          SubnetId: !Ref SubnetId
+      KeyName: !Ref KeyPair
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash
+          export SPLUNK_HOME=/opt/splunk
+          export HOME=/root
+
+          echo "[MESSAGE: Set Locale And Timezone.]"
+          localectl set-locale LANG=ja_JP.utf8
+          timedatectl set-timezone Asia/Tokyo
+          hostnamectl set-hostname aio
+
+          echo "[MESSAGE: Download Splunk Enterprise installer.]"
+          cd /tmp/
+          FILE="$(echo ${URLforSplunkEnterprise} | egrep -o "[^/]+$")"
+          wget -nv -O $FILE ${URLforSplunkEnterprise}
+          INSTALL_FILE=$(ls -1 splunk*)
+
+          echo "[MESSAGE: Install Splunk Enterprise.]"
+          tar xzf /tmp/$INSTALL_FILE -C /opt
+          chown -R root: $SPLUNK_HOME
+
+          echo "[MESSAGE: Start Splunk Enterprise.]"
+          $SPLUNK_HOME/bin/splunk start --accept-license --answer-yes --seed-passwd ${SplunkAdminPassword}
+
+          echo "[MESSAGE: Setting splunk auto start.]"
+          $SPLUNK_HOME/bin/splunk enable boot-start
+
+          echo "[MESSAGE: Set THP and ulimit.]"
+          INIT_FILE="/etc/init.d/splunk"
+          /usr/bin/sed -i -e "s/arting Splunk\.\.\./arting Splunk\.\.\.\n  ulimit -n 64000\n  ulimit -u 16000\n  ulimit -d 1073741824\n  ulimit -c unlimited\n  if test -f \/sys\/kernel\/mm\/transparent_hugepage\/enabled; then\n    echo never > \/sys\/kernel\/mm\/transparent_hugepage\/enabled\n  fi\n  if test -f \/sys\/kernel\/mm\/transparent_hugepage\/defrag; then\n    echo never > \/sys\/kernel\/mm\/transparent_hugepage\/defrag\n  fi\n  \n  if test -f \/sys\/kernel\/mm\/redhat_transparent_hugepage\/enabled; then\n    echo never > \/sys\/kernel\/mm\/redhat_transparent_hugepage\/enabled\n  fi\n  if test -f \/sys\/kernel\/mm\/redhat_transparent_hugepage\/defrag; then\n    echo never > \/sys\/kernel\/mm\/redhat_transparent_hugepage\/defrag\n  fi/g" $INIT_FILE
+
+          echo "[MESSAGE: Setting limits.conf for splunk.]"
+          ADDSTR_LIMITS=$'*                hard    nofile          64000'
+          /usr/bin/sed -i -e "/End of file.*$/i $ADDSTR_LIMITS" /etc/security/limits.conf
+          ADDSTR_LIMITS=$'*                hard    nproc           16000'
+          /usr/bin/sed -i -e "/End of file.*$/i $ADDSTR_LIMITS" /etc/security/limits.conf
+
+          echo "[MESSAGE: Restarting splunk.]"
+          $SPLUNK_HOME/bin/splunk restart
+          wait $!
+
+          echo "[MESSAGE: cfn-signal.]"
+          /opt/aws/bin/cfn-signal -e 0 --resource EC2forAIO --region ${AWS::Region} --stack ${AWS::StackName}
+      Tags:
+        - Key: Name
+          Value: !Sub 'aio-${TagSuffix}'
+        - Key: user
+          Value: !Ref TagUser
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT30M
+Outputs:
+  EC2forAIO:
+    Description: The Instance ID
+    Value: !Ref EC2forAIO
+    Export:
+      Name: !Sub "${AWS::StackName}-EC2forAIO"
+  IPofEC2forAIO:
+    Description: The Instance ID
+    Value: !GetAtt EC2forAIO.PrivateIp
+    Export:
+      Name: !Sub "${AWS::StackName}-IPofEC2forAIO"
+  URLforAIO:
+    Description: The Instance ID
+    Value: !Sub "http://${EC2forAIO.PrivateIp}:8000"
+    Export:
+      Name: !Sub "${AWS::StackName}-URLforAIO"
