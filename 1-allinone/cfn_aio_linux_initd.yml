@@ -9,13 +9,13 @@ Metadata:
         Parameters:
           - VPCID
           - CidrforSGforSplunkAIO
-          - SubnetId
+          - SubnetIdforEC2
       -
         Label:
           default: "Amazon EC2 Configuration"
         Parameters:
-          - ImageId
-          - InstanceType
+          - ImageIdforSplunk
+          - InstanceTypeforSplunk
           - Ec2userPassword
       -
         Label:
@@ -32,13 +32,13 @@ Metadata:
     ParameterLabels:
       VPCID:
         default: "Which VPC should this be deployed to?"
-      SubnetId:
+      SubnetIdforEC2:
         default: "Which Subnet should this be deployed to?"
-      ImageId:
+      ImageIdforSplunk:
         default: "Which AMIID should this be deployed to?"
 Parameters:
   # Parameter for AMI ID
-  ImageId:
+  ImageIdforSplunk:
     Description: Input SSM Parameter for AMI ID for amazonlinux 2 Latest version(Do not modify)
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
@@ -51,7 +51,7 @@ Parameters:
       - https://download.splunk.com/products/splunk/releases/7.3.5/linux/splunk-7.3.5-86fd62efc3d7-Linux-x86_64.tgz
       - https://download.splunk.com/products/splunk/releases/8.0.3/linux/splunk-8.0.3-a6754d8441bf-Linux-x86_64.tgz
   # Parameter for IncetanceType
-  InstanceType:
+  InstanceTypeforSplunk:
     Description: Select EC2 instance type
     Type: String
     Default: t3.small
@@ -74,7 +74,7 @@ Parameters:
     Default: 10.0.0.0/8
     ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/8-16.
   # Parameter for Subnet ID
-  SubnetId:
+  SubnetIdforEC2:
     Description: Select Subnet Id for Generating EC2
     Type: 'AWS::EC2::Subnet::Id'
   # Parameter for KeyPair
@@ -125,14 +125,14 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 20
-      ImageId: !Ref ImageId
-      InstanceType: !Ref InstanceType
+      ImageId: !Ref ImageIdforSplunk
+      InstanceType: !Ref InstanceTypeforSplunk
       NetworkInterfaces:
         - DeleteOnTermination: true
           DeviceIndex: 0
           GroupSet:
             - !Ref SGforSplunkAIO
-          SubnetId: !Ref SubnetId
+          SubnetId: !Ref SubnetIdforEC2
       KeyName: !Ref KeyPair
       UserData: !Base64
         Fn::Sub: |
