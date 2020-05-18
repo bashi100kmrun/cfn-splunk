@@ -197,12 +197,12 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-EC2forAIO"
   IPofEC2forAIO:
-    Description: The Instance ID
+    Description: Private Ip Address
     Value: !GetAtt EC2forAIO.PrivateIp
     Export:
       Name: !Sub "${AWS::StackName}-IPofEC2forAIO"
   URLforAIO:
-    Description: The Instance ID
+    Description: URL for splunkweb
     Value: !Sub "http://${EC2forAIO.PrivateIp}:8000"
     Export:
       Name: !Sub "${AWS::StackName}-URLforAIO"
