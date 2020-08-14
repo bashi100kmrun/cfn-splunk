@@ -37,12 +37,10 @@ Metadata:
       ImageIdforSplunk:
         default: "Which AMIID should this be deployed to?"
 Parameters:
-  # Parameter for AMI ID
   ImageIdforSplunk:
     Description: Input SSM Parameter for AMI ID for amazonlinux 2 Latest version(Do not modify)
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-  # Parameter for Splunk Enterprise's Download URL
   URLforSplunkEnterprise:
     Description: Select Splunk Enterprise Installer Download URL.
     Type: String
@@ -50,7 +48,6 @@ Parameters:
     AllowedValues:
       - https://download.splunk.com/products/splunk/releases/7.3.6/linux/splunk-7.3.6-47d8552a4d84-Linux-x86_64.tgz
       - https://download.splunk.com/products/splunk/releases/8.0.5/linux/splunk-8.0.5-a1a6394cc5ae-Linux-x86_64.tgz
-  # Parameter for InstanceType
   InstanceTypeforSplunk:
     Description: Select EC2 instance type
     Type: String
@@ -63,41 +60,35 @@ Parameters:
       - t3.xlarge
       - t3.2xlarge
     ConstraintDescription: must be a valid EC2 instance type.
-  # Parameter for VPC ID
   VPCID:
-    Description: Select VPC Id for Generating SecurityGroup
+    Description: Select VPC Id for Generating SecurityGroup.
     Type: 'AWS::EC2::VPC::Id'
   CidrforSGforSplunkAIO:
-    Description: Input CIDR Block for New SecurityGroup
+    Description: Input CIDR Block for New SecurityGroup.
     Type: String
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
     Default: 10.0.0.0/8
     ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/8-16.
-  # Parameter for Subnet ID
   SubnetIdforEC2:
-    Description: Select Subnet Id for Generating EC2
+    Description: Select Subnet Id for Generating EC2.
     Type: 'AWS::EC2::Subnet::Id'
-  # Parameter for KeyPair
   KeyPair:
-    Description: Select KeyPair for Generating EC2
+    Description: Select KeyPair for Generating EC2.
     Type: 'AWS::EC2::KeyPair::KeyName'
   TagSuffix:
     Description: Input String for Name Tag.
     Type: String
     Default: sample
-  # Parameter for UserTag
   TagUser:
     Description: Input String for User Tag.
     Type: String
     Default: user
-  # Parameter for Splunk Admin's Password
   SplunkAdminPassword:
     Description: Input Splunk admin user's password.(Default:password)
     Type: String
     Default: password
     NoEcho: True
 Resources:
-  # SecurityGroup for Splunk Enterprise on Linux
   SGforSplunkAIO:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -117,7 +108,6 @@ Resources:
         FromPort: '8089'
         ToPort: '8089'
         CidrIp: !Ref CidrforSGforSplunkAIO
-  # EC2 Settings for Splunk Enterprise(All-in-one)
   EC2forAIO:
     Type: 'AWS::EC2::Instance'
     Properties:
